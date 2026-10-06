@@ -105,3 +105,29 @@ resource "aws_security_group" "rds" {
     Name = "devops-rds-sg"
   }
 }
+# Temporary security group for EC2 network testing
+resource "aws_security_group" "test_ec2" {
+  name        = "devops-test-ec2-sg"
+  description = "Temporary security group for EC2 connectivity testing"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "HTTP for testing"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow all outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "devops-test-ec2-sg"
+  }
+}

@@ -59,11 +59,11 @@ resource "aws_security_group" "backend" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "Backend API from frontend"
+    description     = "Backend API from ALB"
     from_port       = 5000
     to_port         = 5000
     protocol        = "tcp"
-    security_groups = [aws_security_group.frontend.id]
+    security_groups = [aws_security_group.alb.id]
   }
 
   egress {

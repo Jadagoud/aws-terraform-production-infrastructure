@@ -1,11 +1,7 @@
 pipeline {
     agent any
 
-    environment {
-        AWS_ACCESS_KEY_ID     = credentials('aws-terraform')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-terraform_PSW')
-        AWS_DEFAULT_REGION    = 'eu-north-1'
-    }
+
 
     stages {
 
@@ -24,12 +20,21 @@ pipeline {
             }
         }
 
-  stage('Terraform Init') {
+stage('Terraform Init') {
     steps {
-        bat '''
-            cd terraform
-            terraform init
-        '''
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'aws-terraform',
+                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+            )
+        ]) {
+            bat '''
+                set AWS_DEFAULT_REGION=eu-north-1
+                cd terraform
+                terraform init
+            '''
+        }
     }
 }
 

@@ -47,13 +47,20 @@ stage('Terraform Validate') {
     }
 }
 
-        stage('Terraform Plan') {
-            steps {
-                bat '''
-                    cd terraform
-                    terraform plan
-                '''
-            }
+stage('Terraform Plan') {
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'aws-terraform',
+                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+            )
+        ]) {
+            bat '''
+                set AWS_DEFAULT_REGION=eu-north-1
+                cd terraform
+                terraform plan
+            '''
         }
     }
 }

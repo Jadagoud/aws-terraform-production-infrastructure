@@ -18,14 +18,23 @@ pipeline {
             }
         }
 
-        stage('Terraform Validate') {
-            steps {
-                bat '''
-                    cd terraform
-                    terraform validate
-                '''
-            }
-        }
+  stage('Terraform Init') {
+    steps {
+        bat '''
+            cd terraform
+            terraform init
+        '''
+    }
+}
+
+stage('Terraform Validate') {
+    steps {
+        bat '''
+            cd terraform
+            terraform validate
+        '''
+    }
+}
 
         stage('Terraform Plan') {
             steps {

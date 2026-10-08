@@ -6,3 +6,5 @@
 *.tfvars.json
 crash.log
 crash.*.log
+terraform/console-output.json
+terraform/console-output.txt

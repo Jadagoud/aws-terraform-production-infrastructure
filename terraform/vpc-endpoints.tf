@@ -4,6 +4,13 @@ resource "aws_security_group" "vpc_endpoints" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
+    description     = "HTTPS from frontend"
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.frontend.id]
+  }
+  ingress {
     description     = "HTTPS from backend"
     from_port       = 443
     to_port         = 443

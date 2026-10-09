@@ -67,5 +67,17 @@ pipeline {
                 }
             }
         }
+
+        stage('Build Backend Image') {
+            steps {
+                bat 'docker build -t devops-backend:latest ./backend'
+            }
+        }
+
+        stage('Build Frontend Image') {
+            steps {
+                bat 'docker build -t devops-frontend:latest ./frontend'
+            }
+        }
     }
 }

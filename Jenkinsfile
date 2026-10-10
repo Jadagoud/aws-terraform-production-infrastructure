@@ -265,7 +265,7 @@ docker push 451782721795.dkr.ecr.eu-north-1.amazonaws.com/devops-frontend:latest
                                 ConvertTo-Json -Depth 5 |
                                 Set-Content -LiteralPath $parametersFile -Encoding ascii
 
-                            $parametersUri = "file:///" + ($parametersFile -replace '\\', '/')
+                            $parametersUri = ([System.Uri]::new($parametersFile)).AbsoluteUri
 
                             Write-Host "Submitting deployment command to SSM..."
                             $commandId = aws ssm send-command `

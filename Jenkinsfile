@@ -267,13 +267,15 @@ docker push 451782721795.dkr.ecr.eu-north-1.amazonaws.com/devops-frontend:latest
 
                             $parametersUri = ([System.Uri]::new($parametersFile)).AbsoluteUri
 
+                            
                             Write-Host "Submitting deployment command to SSM..."
                             $commandId = aws ssm send-command `
-                                --instance-ids $instanceId `
-                                --document-name AWS-RunShellScript `
-                                --parameters $parametersUri `
-                                --query "Command.CommandId" `
-                                --output text
+                            --instance-ids $instanceId `
+                            --document-name AWS-RunShellScript `
+                            --parameters "file://$parametersFile" `
+                            --query "Command.CommandId" `
+                            --output text
+
 
                             if ($LASTEXITCODE -ne 0 -or
                                 $commandId -notmatch '^[0-9a-fA-F-]{36}$') {

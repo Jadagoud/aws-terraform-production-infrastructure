@@ -5,7 +5,7 @@ umask 077
 CONTAINER="devops-backend"
 CANDIDATE="devops-backend-candidate"
 ROLLBACK="devops-backend-rollback"
-NETWORK="aws-terraform-production-infrastructure_devops-network"
+NETWORK="bridge"
 STATE_DIR="/opt/devops-deploy"
 IMAGE="${DEPLOY_IMAGE:?Set DEPLOY_IMAGE to an immutable ECR digest URI}"
 WORK_DIR=""
@@ -26,6 +26,7 @@ health_check() {
 exists() { docker inspect "$1" >/dev/null 2>&1; }
 running() { [[ "$(docker inspect --format '{{.State.Running}}' "$1" 2>/dev/null)" == "true" ]]; }
 
+
 cleanup() {
     local rc=$? rollback_rc=0
     trap - EXIT
@@ -33,38 +34,36 @@ cleanup() {
 
     if [[ "$SWITCH_STARTED" == "1" && "$DEPLOY_SUCCEEDED" != "1" ]]; then
         echo "Deployment failed; attempting rollback."
+
         if exists "$ROLLBACK"; then
             if exists "$CONTAINER"; then
                 docker rm -f "$CONTAINER" >/dev/null 2>&1
                 exists "$CONTAINER" && rollback_rc=2
             fi
+
             if [[ "$rollback_rc" == "0" ]] && ! exists "$CONTAINER"; then
                 docker rename "$ROLLBACK" "$CONTAINER" || rollback_rc=2
             fi
+
             if [[ "$rollback_rc" == "0" ]] && exists "$CONTAINER"; then
-                if ! docker network inspect "$NETWORK" >/dev/null 2>&1; then
-                    echo "CRITICAL: expected Docker network is missing."
-                    rollback_rc=2
+                docker start "$CONTAINER" >/dev/null || rollback_rc=2
+
+                if [[ "$rollback_rc" == "0" ]] &&
+                   health_check "http://127.0.0.1:5000/api/health"; then
+                    echo "Rollback health check passed."
                 else
-                    docker network connect --alias backend --alias devops-backend "$NETWORK" "$CONTAINER" >/dev/null 2>&1 || true
-                    docker start "$CONTAINER" >/dev/null || rollback_rc=2
-                    if [[ "$rollback_rc" == "0" ]] && health_check "http://127.0.0.1:5001/api/health"; then
-                        echo "Rollback health check passed."
-                    else
-                        echo "CRITICAL: rollback backend is not healthy."
-                        rollback_rc=2
-                    fi
+                    echo "CRITICAL: rollback backend is not healthy."
+                    rollback_rc=2
                 fi
             fi
+
         elif exists "$CONTAINER"; then
-            # If switching failed before the old container was renamed, preserve it.
-            if [[ "$OLD_DISCONNECTED" == "1" ]]; then
-                docker network connect --alias backend --alias devops-backend "$NETWORK" "$CONTAINER" >/dev/null 2>&1 || true
-            fi
             if ! running "$CONTAINER"; then
                 docker start "$CONTAINER" >/dev/null || rollback_rc=2
             fi
-            if [[ "$rollback_rc" == "0" ]] && ! health_check "http://127.0.0.1:5001/api/health"; then
+
+            if [[ "$rollback_rc" == "0" ]] &&
+               ! health_check "http://127.0.0.1:5000/api/health"; then
                 echo "CRITICAL: backend is not healthy after recovery."
                 rollback_rc=2
             fi
@@ -74,8 +73,14 @@ cleanup() {
         fi
     fi
 
-    if exists "$CANDIDATE"; then docker rm -f "$CANDIDATE" >/dev/null 2>&1; fi
-    if [[ -n "$WORK_DIR" && -d "$WORK_DIR" ]]; then rm -rf "$WORK_DIR"; fi
+    if exists "$CANDIDATE"; then
+        docker rm -f "$CANDIDATE" >/dev/null 2>&1
+    fi
+
+    if [[ -n "$WORK_DIR" && -d "$WORK_DIR" ]]; then
+        rm -rf "$WORK_DIR"
+    fi
+
     [[ "$rollback_rc" == "0" ]] || rc=2
     exit "$rc"
 }
@@ -94,7 +99,7 @@ flock -n 9 || { echo "ERROR: another deployment is running."; exit 1; }
 exists "$CONTAINER" || { echo "ERROR: current backend container is missing."; exit 1; }
 exists "$CANDIDATE" && { echo "ERROR: candidate container already exists; inspect it first."; exit 1; }
 docker network inspect "$NETWORK" >/dev/null 2>&1 || { echo "ERROR: expected Docker network is missing."; exit 1; }
-health_check "http://127.0.0.1:5001/api/health" || {
+health_check "http://127.0.0.1:5000/api/health" || {
     echo "ERROR: current backend is unhealthy; refusing deployment."
     exit 1
 }
@@ -117,8 +122,8 @@ if c["HostConfig"].get("Binds"):
 if expected not in c.get("NetworkSettings", {}).get("Networks", {}):
     raise SystemExit("ERROR: current backend is not attached to the expected Docker network.")
 bindings = c.get("HostConfig", {}).get("PortBindings", {}).get("5000/tcp", [])
-if not any(b.get("HostPort") == "5001" for b in bindings):
-    raise SystemExit("ERROR: current backend is not mapped to host port 5001.")
+if not any(b.get("HostPort") == "5000" for b in bindings):
+    raise SystemExit("ERROR: current backend is not mapped to host port 5000.")
 PY
 
 python3 - "$WORK_DIR/container.json" "$WORK_DIR/env.list" <<'PY'
@@ -162,23 +167,19 @@ docker rm -f "$CANDIDATE" >/dev/null
 echo "Candidate passed health and API checks. Switching production..."
 SWITCH_STARTED=1
 docker stop "$CONTAINER" >/dev/null
-docker network disconnect "$NETWORK" "$CONTAINER"
-OLD_DISCONNECTED=1
 docker rename "$CONTAINER" "$ROLLBACK"
 
 docker run -d --name "$CONTAINER" \
     --network "$NETWORK" \
-    --network-alias backend \
-    --network-alias devops-backend \
     --restart unless-stopped \
     --env-file "$WORK_DIR/env.list" \
-    -p 5001:5000 "$NEW_IMAGE_ID" >/dev/null
+    -p 5000:5000 "$NEW_IMAGE_ID" >/dev/null
 
-health_check "http://127.0.0.1:5001/api/health" || {
+health_check "http://127.0.0.1:5000/api/health" || {
     echo "ERROR: new production backend failed health check."
     exit 1
 }
-health_check "http://127.0.0.1:5001/api/users" || {
+health_check "http://127.0.0.1:5000/api/users" || {
     echo "ERROR: new production API/database check failed."
     exit 1
 }

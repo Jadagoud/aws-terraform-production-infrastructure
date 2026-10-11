@@ -138,14 +138,18 @@ with open(sys.argv[2], "w", encoding="utf-8", newline="\n") as f:
 PY
 chmod 600 "$WORK_DIR/env.list"
 
-echo "Pulling immutable image..."
 echo "Refreshing ECR authentication..."
 aws ecr get-login-password --region eu-north-1 \
   | docker login --username AWS --password-stdin \
       451782721795.dkr.ecr.eu-north-1.amazonaws.com
 
-echo "Pulling backend image..."
-docker pull "$IMAGE"NEW_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
+echo "Pulling exact backend image: $IMAGE"
+docker pull "$IMAGE"
+
+echo "Verifying pulled image..."
+docker image inspect "$IMAGE" >/dev/null
+
+NEW_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
 OLD_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$CONTAINER")"
 if [[ "$NEW_IMAGE_ID" == "$OLD_IMAGE_ID" ]]; then
     echo "Backend already uses this image; no deployment needed."

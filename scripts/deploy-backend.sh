@@ -139,8 +139,13 @@ PY
 chmod 600 "$WORK_DIR/env.list"
 
 echo "Pulling immutable image..."
-docker pull "$IMAGE" >/dev/null
-NEW_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
+echo "Refreshing ECR authentication..."
+aws ecr get-login-password --region eu-north-1 \
+  | docker login --username AWS --password-stdin \
+      451782721795.dkr.ecr.eu-north-1.amazonaws.com
+
+echo "Pulling backend image..."
+docker pull "$IMAGE"NEW_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE")"
 OLD_IMAGE_ID="$(docker inspect --format '{{.Image}}' "$CONTAINER")"
 if [[ "$NEW_IMAGE_ID" == "$OLD_IMAGE_ID" ]]; then
     echo "Backend already uses this image; no deployment needed."
